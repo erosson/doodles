@@ -18,10 +18,20 @@ function Point(texture, x, y, z) {
   this.index = this.texture.xyToIndex(x, y);
 }
 Point.prototype.color = function() {
-  if (this.z >= 0) {
-    // land
+  if (this.z >= 0.5) {
+    // mountaintop
+    var w = 0.85 + 0.15*Math.min(5, Math.max(0, this.z - 0.8));
+    return 0x010101 * Math.floor(w * 0xFF);
+  }
+  if (this.z >= 0.02) {
+    // grassland
     var g = 0.2 + 0.8*Math.min(1, Math.max(0, this.z));
-    return 0x100 * Math.floor(g * 0xFF);
+    return 0x000100 * Math.floor(g * 0xFF);
+  }
+  if (this.z >= 0) {
+    // dirt/shore
+    var rg = 0.2 + 0.4*Math.min(0.1, Math.max(0, this.z))/0.1;
+    return 0x010100 * Math.floor(rg * 0xFF);
   }
   // water
   var b = 0.8 * (1 - Math.min(1, Math.max(0, -this.z)));
@@ -68,44 +78,91 @@ Texture.prototype.xyToIndex = function(x, y) {
 Texture.prototype.xyToPoint = function(x, y) {
   return this.points[this.xyToIndex(x, y)];
 };
+
 // http://gameprogrammer.com/fractal.html
-Texture.prototype.runDiamondSquare = function(p0, p3, amp) {
-  //             p01x
-  //              |
-  //        p0 - p01 - p1
-  //        |     |    |
-  // p02x - p02 - c -  p13 - p13x 
-  //        |     |    |
-  //        p2 - p23 - p3
-  //              |
-  //             p23x
-  var p1 = this.xyToPoint(p3.x, p0.y);
-  var p2 = this.xyToPoint(p0.x, p3.y);
-  var p01 = p0.midpoint(p1);
-  // terminate recursion
-  if (!p01) {
-    return;
+Texture.prototype.runDiamondSquare = function(amp) {
+  var length = this.numSegments / 2;
+  var level = 0;
+  while (length >= 1) {
+    // iterate all diamonds
+    var diamonds = [];
+    for (var x=length; x < this.numVerts; x += length*2) {
+      for (var y=length; y < this.numVerts; y += length*2) {
+        var pt = this.xyToPoint(x, y);
+        diamonds.push(pt);
+        pt.setHeightFromSources([
+          this.xyToPoint(pt.x - length, pt.y - length),
+          this.xyToPoint(pt.x - length, pt.y + length),
+          this.xyToPoint(pt.x + length, pt.y - length),
+          this.xyToPoint(pt.x + length, pt.y + length),
+        ], amp);
+      }
+    }
+    // iterate all squares. a little trickier, needs two iterations
+    var squares = [];
+    for (var x=length; x < this.numVerts; x += length*2) {
+      for (var y=0; y < this.numVerts; y += length*2) {
+        squares.push(this.xyToPoint(x, y));
+      }
+    }
+    for (var x=0; x < this.numVerts; x += length*2) {
+      for (var y=length; y < this.numVerts; y += length*2) {
+        squares.push(this.xyToPoint(x, y));
+      }
+    }
+    _.forEach(squares, function(pt) {
+      pt.setHeightFromSources([
+        this.xyToPoint(pt.x - length, pt.y),
+        this.xyToPoint(pt.x + length, pt.y),
+        this.xyToPoint(pt.x, pt.y - length),
+        this.xyToPoint(pt.x, pt.y + length),
+      ], amp);
+    }, this);
+    // next iteration
+    console.log('runDiamondSquare', level, length, amp, diamonds, diamonds.length, squares, squares.length);
+    amp /= 2;
+    length /= 2;
+    level += 1;
   }
-  var p02 = p0.midpoint(p2);
-  var p31 = p3.midpoint(p1);
-  var p32 = p3.midpoint(p2);
-  var c = p01.midpoint(p32);
-  var p01x = c.fromMidpoint(p01);
-  var p02x = c.fromMidpoint(p02);
-  var p31x = c.fromMidpoint(p31);
-  var p32x = c.fromMidpoint(p32);
-  // diamond
-  c.setHeightFromSources([p0, p1, p2, p3], amp);
-  // squares
-  p01.setHeightFromSources([p0, p1, c, p01x], amp);
-  p02.setHeightFromSources([p0, p2, c, p02x], amp);
-  p31.setHeightFromSources([p3, p1, c, p31x], amp);
-  p32.setHeightFromSources([p3, p2, c, p32x], amp);
-  // recurse
-  _.forEach([p0, p1, p2, p3], function(p) {
-    this.runDiamondSquare(c, p, amp * 0.5);
-  }, this);
 };
+// BROKEN - visible seams along quad boundaries
+//Texture.prototype.runDiamondSquareRecursive = function(p0, p3, amp) {
+//  //             p01x
+//  //              |
+//  //        p0 - p01 - p1
+//  //        |     |    |
+//  // p02x - p02 - c -  p13 - p13x 
+//  //        |     |    |
+//  //        p2 - p23 - p3
+//  //              |
+//  //             p23x
+//  var p1 = this.xyToPoint(p3.x, p0.y);
+//  var p2 = this.xyToPoint(p0.x, p3.y);
+//  var p01 = p0.midpoint(p1);
+//  // terminate recursion
+//  if (!p01) {
+//    return;
+//  }
+//  var p02 = p0.midpoint(p2);
+//  var p31 = p3.midpoint(p1);
+//  var p32 = p3.midpoint(p2);
+//  var c = p01.midpoint(p32);
+//  var p01x = c.fromMidpoint(p01);
+//  var p02x = c.fromMidpoint(p02);
+//  var p31x = c.fromMidpoint(p31);
+//  var p32x = c.fromMidpoint(p32);
+//  // diamond
+//  c.setHeightFromSources([p0, p1, p2, p3], amp);
+//  // squares
+//  p01.setHeightFromSources([p0, p1, c, p01x], amp);
+//  p02.setHeightFromSources([p0, p2, c, p02x], amp);
+//  p31.setHeightFromSources([p3, p1, c, p31x], amp);
+//  p32.setHeightFromSources([p3, p2, c, p32x], amp);
+//  // recurse
+//  _.forEach([p0, p1, p2, p3], function(p) {
+//    this.runDiamondSquare(c, p, amp * 0.5);
+//  }, this);
+//};
 Texture.prototype.corners = function() {
   var ret = [];
   var startend = [0, this.numSegments];
@@ -117,43 +174,14 @@ Texture.prototype.corners = function() {
   return ret;
 };
 Texture.prototype.generate = function() {
-  //_.forEach(this.corners(), function(pt) {
-  //  pt.z = randRange(-1, 1);
-  //});
-  this.xyToPoint(0, 0).z = randRange(-1, 1);
-  this.xyToPoint(0, 0).z = randRange(-1, 1);
-  return this.runDiamondSquare(this.points[0], this.points[this.points.length-1], 0.5);
+  _.forEach(this.corners(), function(pt) {
+    pt.z = randRange(-1, 1);
+  });
+  return this.runDiamondSquare(0.5);
 };
 
-function buildTextureSegment(v0, v1, amp) {
-  var p0 = indexToPoint(v0);
-  var p1 = indexToPoint(v1);
-  var pmid = midpoint(p0, p1);
-  // once midpoints are non-integers, stop iterating
-  if (pmid.x === Math.floor(pmid.x) && pmid.y === Math.floor(pmid.y)) {
-    var vmid = pointToIndex(pmid);
-    texture[pointToIndex(pmid)] = Math.random() * amp + (texture[v0] + texture[v1])/2
-  }
-}
-// http://gameprogrammer.com/fractal.html
-function buildTextureBox(v0, v3, amp) {
-  var p0 = indexToPoint(v0);
-  var p3 = indexToPoint(v3);
-  var p2 = {x:p0.x, y:p3.y};
-  var p1 = {x:p3.x, y:p0.y};
-  var p01 = midpoint(p0, p1);
-  var p02 = midpoint(p0, p2);
-  var p31 = midpoint(p3, p1);
-  var p32 = midpoint(p3, p2);
-  var c = midpoint(p01, p32);
-  // diamond: randomize center vertex of box
-  var height = texture[pointToIndex(c)] = averagePoints([p0, p1, p2, p3]) + Math.random();
-  //console.log('diamond', c, height, texture);
-}
-//buildTextureBox(xyToIndex(0, 0), xyToIndex(segments, segments), 1);
 
-
-var texture = new Texture(5);
+var texture = new Texture(8);
 texture.generate();
 
 
