@@ -6,6 +6,9 @@
 function mean(vals) {
   return _.sum(vals) / vals.length;
 }
+function randRange(min, max) {
+  return Math.random() * (max - min) + min;
+}
 
 function Point(texture, x, y, z) {
   this.texture = texture;
@@ -22,7 +25,7 @@ Point.prototype.color = function() {
   }
   // water
   var b = 0.8 * (1 - Math.min(1, Math.max(0, -this.z)));
-  console.log(this.z, b);
+  //console.log(this.z, b);
   return Math.floor(b * 0xFF);
 };
 Point.prototype.renderZ = function() {
@@ -40,11 +43,10 @@ Point.prototype.fromMidpoint = function(midpoint) {
   return this.texture.xyToPoint(midpoint.x + dx, midpoint.y + dy);
 };
 Point.prototype.setHeightFromSources = function(ps, amp) {
-  // points may have nulls, but map filters them
-  var meanZ = mean(_.map(ps, function(p) { return p.z; }));
-  var rand = Math.random() * 2 - 1; // (-1, 1)
+  var meanZ = mean(_.map(_.filter(ps), function(p) { return p.z; }));
+  var rand = randRange(-1, 1);
   this.z = meanZ + rand * amp;
-  console.log('setHeight', this, ps, meanZ, rand, this.z);
+  //console.log('setHeight', this, ps, meanZ, rand, this.z);
 };
 
 function Texture(segPow) {
@@ -104,7 +106,22 @@ Texture.prototype.runDiamondSquare = function(p0, p3, amp) {
     this.runDiamondSquare(c, p, amp * 0.5);
   }, this);
 };
+Texture.prototype.corners = function() {
+  var ret = [];
+  var startend = [0, this.numSegments];
+  _.forEach(startend, function(x) {
+    _.forEach(startend, function(y) {
+      ret.push(this.xyToPoint(x, y));
+    }, this);
+  }, this);
+  return ret;
+};
 Texture.prototype.generate = function() {
+  //_.forEach(this.corners(), function(pt) {
+  //  pt.z = randRange(-1, 1);
+  //});
+  this.xyToPoint(0, 0).z = randRange(-1, 1);
+  this.xyToPoint(0, 0).z = randRange(-1, 1);
   return this.runDiamondSquare(this.points[0], this.points[this.points.length-1], 0.5);
 };
 
@@ -131,7 +148,7 @@ function buildTextureBox(v0, v3, amp) {
   var c = midpoint(p01, p32);
   // diamond: randomize center vertex of box
   var height = texture[pointToIndex(c)] = averagePoints([p0, p1, p2, p3]) + Math.random();
-  console.log('diamond', c, height, texture);
+  //console.log('diamond', c, height, texture);
 }
 //buildTextureBox(xyToIndex(0, 0), xyToIndex(segments, segments), 1);
 
