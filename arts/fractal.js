@@ -15,17 +15,36 @@ function Point(texture, x, y, z) {
   this.index = this.texture.xyToIndex(x, y);
 }
 Point.prototype.color = function() {
-  var g = 0.2 + 0.8*Math.min(1, Math.max(0, this.z));
-  console.log(this.z, g);
-  return 0x100 * Math.floor(g * 0xFF);
+  if (this.z >= 0) {
+    // land
+    var g = 0.2 + 0.8*Math.min(1, Math.max(0, this.z));
+    return 0x100 * Math.floor(g * 0xFF);
+  }
+  // water
+  var b = 0.8 * (1 - Math.min(1, Math.max(0, -this.z)));
+  console.log(this.z, b);
+  return Math.floor(b * 0xFF);
 };
 Point.prototype.renderZ = function() {
-  return this.z;
+  //return this.z;
+  return 3 * Math.max(0, this.z);
 };
 Point.prototype.midpoint = function(that) {
   var x = mean([this.x, that.x]);
   var y = mean([this.y, that.y]);
   return this.texture.xyToPoint(x, y);
+};
+Point.prototype.fromMidpoint = function(midpoint) {
+  var dx = this.x - midpoint.x;
+  var dy = this.y - midpoint.y;
+  return this.texture.xyToPoint(midpoint.x + dx, midpoint.y + dy);
+};
+Point.prototype.setHeightFromSources = function(ps, amp) {
+  // points may have nulls, but map filters them
+  var meanZ = mean(_.map(ps, function(p) { return p.z; }));
+  var rand = Math.random() * 2 - 1; // (-1, 1)
+  this.z = meanZ + rand * amp;
+  console.log('setHeight', this, ps, meanZ, rand, this.z);
 };
 
 function Texture(segPow) {
@@ -36,7 +55,7 @@ function Texture(segPow) {
   this.points = [];
   for (var x=0; x < this.numVerts; x++) {
     for (var y=0; y < this.numVerts; y++) {
-      var pt = new Point(this, x, y, Math.random());
+      var pt = new Point(this, x, y, 0);
       this.points[pt.index] = pt;
     }
   }
@@ -45,7 +64,48 @@ Texture.prototype.xyToIndex = function(x, y) {
   return x * this.numVerts + y;
 };
 Texture.prototype.xyToPoint = function(x, y) {
-  return this.point[this.xyToIndex(x, y)];
+  return this.points[this.xyToIndex(x, y)];
+};
+// http://gameprogrammer.com/fractal.html
+Texture.prototype.runDiamondSquare = function(p0, p3, amp) {
+  //             p01x
+  //              |
+  //        p0 - p01 - p1
+  //        |     |    |
+  // p02x - p02 - c -  p13 - p13x 
+  //        |     |    |
+  //        p2 - p23 - p3
+  //              |
+  //             p23x
+  var p1 = this.xyToPoint(p3.x, p0.y);
+  var p2 = this.xyToPoint(p0.x, p3.y);
+  var p01 = p0.midpoint(p1);
+  // terminate recursion
+  if (!p01) {
+    return;
+  }
+  var p02 = p0.midpoint(p2);
+  var p31 = p3.midpoint(p1);
+  var p32 = p3.midpoint(p2);
+  var c = p01.midpoint(p32);
+  var p01x = c.fromMidpoint(p01);
+  var p02x = c.fromMidpoint(p02);
+  var p31x = c.fromMidpoint(p31);
+  var p32x = c.fromMidpoint(p32);
+  // diamond
+  c.setHeightFromSources([p0, p1, p2, p3], amp);
+  // squares
+  p01.setHeightFromSources([p0, p1, c, p01x], amp);
+  p02.setHeightFromSources([p0, p2, c, p02x], amp);
+  p31.setHeightFromSources([p3, p1, c, p31x], amp);
+  p32.setHeightFromSources([p3, p2, c, p32x], amp);
+  // recurse
+  _.forEach([p0, p1, p2, p3], function(p) {
+    this.runDiamondSquare(c, p, amp * 0.5);
+  }, this);
+};
+Texture.prototype.generate = function() {
+  return this.runDiamondSquare(this.points[0], this.points[this.points.length-1], 0.5);
 };
 
 function buildTextureSegment(v0, v1, amp) {
@@ -60,11 +120,6 @@ function buildTextureSegment(v0, v1, amp) {
 }
 // http://gameprogrammer.com/fractal.html
 function buildTextureBox(v0, v3, amp) {
-  // p0 - p01 - p1
-  // |     |    |
-  // p02 - c -  p13
-  // |     |    |
-  // p2 - p23 - p3
   var p0 = indexToPoint(v0);
   var p3 = indexToPoint(v3);
   var p2 = {x:p0.x, y:p3.y};
@@ -81,7 +136,8 @@ function buildTextureBox(v0, v3, amp) {
 //buildTextureBox(xyToIndex(0, 0), xyToIndex(segments, segments), 1);
 
 
-var texture = new Texture(4);
+var texture = new Texture(5);
+texture.generate();
 
 
 
@@ -99,12 +155,13 @@ document.body.appendChild( renderer.domElement );
 //var geometry = new THREE.BoxGeometry( 1, 1, 1 );
 
 
+// copy our computed texture to the rendered geometry
 var geometry = new THREE.PlaneGeometry( 5, 5, texture.numSegments, texture.numSegments);
 geometry.vertexColors = [];
 for (var i=0; i < texture.points.length; i++) {
   var pt = texture.points[i];
   geometry.vertices[i].z = pt.renderZ();
-  // this would be nice, but nope
+  // this would be nice, but nope. have to work with faces instead
   //geometry.vertexColors[i] = new THREE.Color(pt.color());
 }
 for (var i=0; i < geometry.faces.length; i++) {
