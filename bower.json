@@ -1,0 +1,20 @@
+{
+  "name": "art",
+  "version": "0.0.0",
+  "authors": [
+    "Evan Rosson <github@erosson.org>"
+  ],
+  "license": "GPLv2",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "coffee-script": "coffeescript#~1.10.0",
+    "lodash": "~3.10.1",
+    "three.js": "threejs#*"
+  }
+}
