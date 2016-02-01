@@ -1,0 +1,41 @@
+{
+  "name": "gridster",
+  "homepage": "dsmorse.github.io/gridster.js/",
+  "version": "0.6.10",
+  "dependencies": {
+    "jquery": "^2.1.3"
+  },
+  "devDependencies": {
+    "requirejs": "^2.1.17",
+    "qunit": "~1.18.0"
+  },
+  "main": [
+    "dist/jquery.gridster.js",
+    "dist/jquery.gridster.css"
+  ],
+  "private": false,
+  "ignore": [
+    ".bowerrc",
+    ".jshintrc",
+    ".gitignore",
+    ".travis.yml",
+    "CONTRIBUTING.md",
+    "Gruntfile.js",
+    "package.json",
+    "test/",
+    "gridster.js-rails.gemspec",
+    "Gemfile",
+    "Gemfile.lock",
+    "lib"
+  ],
+  "_release": "0.6.10",
+  "_resolution": {
+    "type": "version",
+    "tag": "v0.6.10",
+    "commit": "d48fbf7501975df3d44e90d6276a44089533b702"
+  },
+  "_source": "git://github.com/dsmorse/gridster.js.git",
+  "_target": "~0.6.10",
+  "_originalSource": "gridster-js",
+  "_direct": true
+}
